@@ -64,7 +64,7 @@
             <div class="space-y-4 relative z-10 w-full">
                 <input id="log-user" type="text" placeholder="Usuario" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-center">
                 <input id="log-pass" type="password" placeholder="Contraseña" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-center">
-                <button onclick="login()" class="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all uppercase tracking-widest mt-2">Ingresar al ERP</button>
+                <button id="btn-login" onclick="login()" disabled class="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl opacity-60 cursor-not-allowed hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all uppercase tracking-widest mt-2">Ingresar al ERP</button>
             </div>
             
             <div class="mt-5 relative z-10 text-center w-full">
@@ -832,6 +832,8 @@ function save() {
 // ── INICIALIZACIÓN ────────────────────────────────────────
 function initDB() {
     showLoadingScreen('Conectando con Firebase...');
+    const btnLInit = document.getElementById('btn-login');
+    if(btnLInit) { btnLInit.disabled=true; btnLInit.innerText='⏳ Cargando...'; }
     DB_REF.once('value').then(snapshot => {
         const data = snapshot.val();
         if (data && data.users) {
@@ -855,6 +857,8 @@ function initDB() {
             DB_REF.set(db);
         }
         hideLoadingScreen();
+        const btnL = document.getElementById('btn-login');
+        if(btnL) { btnL.disabled=false; btnL.classList.remove('opacity-60','cursor-not-allowed'); btnL.classList.add('hover:bg-indigo-700'); btnL.innerText='INGRESAR AL ERP'; }
         bootApp();
     }).catch(e => {
         console.error('[ERP] Error Firebase:', e);
@@ -862,11 +866,14 @@ function initDB() {
         db = backup ? JSON.parse(backup) : JSON.parse(JSON.stringify(initialDB));
         hideLoadingScreen();
         showToast('⚠️ Sin conexión — datos locales');
+        const btnL2 = document.getElementById('btn-login');
+        if(btnL2) { btnL2.disabled=false; btnL2.classList.remove('opacity-60','cursor-not-allowed'); }
         bootApp();
     });
 }
 
 function bootApp() {
+    if (!db) { console.error('[ERP] bootApp called with null db'); return; }
     // MIGRACIÓN: convertir precios BCV → USD si aún no se ha hecho
     if (!db._priceInUSD && db.inventory && db.inventory.length > 0) {
         let migrated = 0;
@@ -918,6 +925,11 @@ function recoverPassword() {
 }
 
 function login(isAuto = false) {
+    // Guard: if db not loaded yet, retry after a moment
+    if (!db || !db.users) {
+        if (!isAuto) showToast('⏳ Cargando datos... intenta de nuevo');
+        return;
+    }
     const u = document.getElementById('log-user').value.trim(); 
     const p = document.getElementById('log-pass').value.trim();
     currUser = db.users.find(x => x.user.toLowerCase() === u.toLowerCase() && x.pass === p);
